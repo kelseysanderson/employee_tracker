@@ -7,7 +7,7 @@ function initialPrompt() {
       name: 'initial',
       type: 'list',
       message: 'What would you like to do?',
-      choices: ['View all Employees', 'View all Employees by Department', 'View all Employees by Role', 'Add Department', 'Add Role', 'Add Employee']
+      choices: ['View all Employees', 'View all Employees by Department', 'View all Employees by Role', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role']
     },
   ])
     .then(function (data) {
@@ -35,6 +35,9 @@ function initialPrompt() {
         case 'Add Employee':
           setEmployeeArrays();
           break;
+        case 'Update Employee Role':
+          updateEmployeeRole();
+          break;
       }
     });
 }
@@ -50,7 +53,8 @@ function viewAllEmployees() {
     (err, res) => {
       if (err) throw err;
       console.table(res);
-      connection.end();
+      initialPrompt()
+      // connection.end();
     });
 };
 
@@ -91,7 +95,8 @@ function viewEmployeesByDept(deptArray) {
         (err, res) => {
           if (err) throw err;
           console.table(res);
-          connection.end();
+          initialPrompt()
+          // connection.end();
         });
 
     });
@@ -135,7 +140,8 @@ function viewEmployeesByRole(rolesArray) {
         (err, res) => {
           if (err) throw err;
           console.table(res);
-          connection.end();
+          // connection.end();
+          initialPrompt()
         });
 
     });
@@ -160,6 +166,7 @@ function addDepartment() {
         if (err) throw err;
         console.log('Your department has been added!');
         console.table(res);
+        initialPrompt()
       })
     });
 }
@@ -207,6 +214,7 @@ function addRole() {
             },
             (err, res) => {
               if (err) throw err;
+              initialPrompt()
             });
         });
     });
@@ -268,7 +276,87 @@ function addEmployee(managerArray, roleArray) {
       ),
         (err, res) => {
           if (err) throw err;
+          initialPrompt()
         };
+    });
+}
+
+function updateEmployeeRole(){
+  let employeeArray = []
+  let roleArray =[]
+  connection.query(
+   `SELECT * FROM employees`,
+    (err, empResults) => {
+      connection.query(
+        `SELECT * FROM roles`,
+         (err, rolesResults) => {
+     
+          console.log('emps', empResults)
+          console.log('roles', rolesResults)
+
+        // if (err) throw err;
+        // console.log(res)
+        for (let index = 0; index < empResults.length; index++) {
+          employeeArray.push(empResults[index].first_name + " " +empResults[index].last_name)  
+         
+        } 
+
+        for (let index = 0; index < rolesResults.length; index++) {
+          roleArray.push(rolesResults[index].title)  
+         
+        } 
+
+        console.log('emp array', employeeArray)
+        console.log('roles array', roleArray)
+      
+      inquirer.prompt([
+        {
+          type: 'list',
+          name: 'name',
+          message: 'What is the employee\'s name?',
+          choices: employeeArray,
+        },
+        {
+          type: 'list',
+          name: 'role',
+          message: 'What is the employee\'s new role?',
+          choices: roleArray,
+        },
+       ]).then(function(data) {
+        let roleId;
+        let employeeId;
+        console.log('ANSWERS!!', data)
+
+        for (i=0; i < rolesResults.length; i++){
+            if (data.role == rolesResults[i].title){
+                roleId = rolesResults[i].id;
+            }
+        }
+        console.log('Role id to update!!', roleId)
+
+        for (i=0; i < empResults.length; i++){
+            if (data.name.split(' ')[1] == empResults[i].last_name){
+                employeeId = empResults[i].id;
+            }
+        }
+        console.log('Emp id to update', employeeId)
+        connection.query("UPDATE employees SET ? WHERE ? ", 
+          [{
+            role_id: roleId
+            
+          },
+          {
+            id: employeeId
+          }], 
+          function(err){
+              if (err) throw err
+              // console.table(val)
+              // startPrompt()
+              initialPrompt()
+          })
+  
+        });
+         })
     });
 }
 
