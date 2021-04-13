@@ -7,7 +7,7 @@ function initialPrompt() {
       name: 'initial',
       type: 'list',
       message: 'What would you like to do?',
-      choices: ['View all Employees', 'View all Employees by Department', 'View all Employees by Role', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role']
+      choices: ['View all Employees', 'View Employees by Department', 'View Employees by Role', 'View Employees by Manager', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role', 'Update Employee Manager']
     },
   ])
     .then(function (data) {
@@ -16,12 +16,16 @@ function initialPrompt() {
           viewAllEmployees();
           break;
 
-        case 'View all Employees by Department':
+        case 'View Employees by Department':
           setDeptArray();
           break;
 
-        case 'View all Employees by Role':
+        case 'View Employees by Role':
           setRoleArray();
+          break;
+
+        case 'View Employees by Manager':
+          setManagerArray();
           break;
 
         case 'Add Department':
@@ -35,8 +39,13 @@ function initialPrompt() {
         case 'Add Employee':
           setEmployeeArrays();
           break;
+
         case 'Update Employee Role':
           updateEmployeeRole();
+          break;
+
+        case 'Update Employee Manager':
+          updateEmployeeManager();
           break;
       }
     });
@@ -83,7 +92,6 @@ function viewEmployeesByDept(deptArray) {
     .then(function (data) {
       let dept = data.dept
       dept = dept.charAt(0).toUpperCase() + dept.slice(1);
-      //FIX THIS
       connection.query(`
           SELECT *
           FROM employee_tracking.employees
@@ -140,7 +148,53 @@ function viewEmployeesByRole(rolesArray) {
         (err, res) => {
           if (err) throw err;
           console.table(res);
-          // connection.end();
+          initialPrompt()
+        });
+
+    });
+}
+
+function setManagerArray() {
+  let managerArray = []
+  connection.query(`
+    SELECT *
+    FROM employees`,
+    (err, empResults) => {
+      if (err) throw err;
+      for (let index = 0; index < empResults.length; index++) {
+        if (empResults[index].manager_id === null) {
+          managerArray.push(empResults[index].first_name + " " + empResults[index].last_name)
+        }
+      }
+      viewEmployeesByManager(managerArray, empResults);
+    });
+}
+
+function viewEmployeesByManager(managerArray, empResults) {
+  inquirer.prompt([
+    {
+      type: 'list',
+      name: 'manager',
+      message: 'Which manager would you like to view?',
+      choices: managerArray,
+    },])
+    .then(function (data) {
+      for (i = 0; i < empResults.length; i++) {
+        if (data.manager.split(' ')[1] == empResults[i].last_name) {
+          managerId = empResults[i].id;
+        }
+      }
+      connection.query(
+        ` SELECT *
+          FROM employee_tracking.employees
+          JOIN employee_tracking.roles 
+          ON employee_tracking.employees.role_id = employee_tracking.roles.id
+          JOIN employee_tracking.departments
+          ON employee_tracking.roles.department_id = employee_tracking.departments.id
+          WHERE manager_id = "${managerId}"`,
+        (err, res) => {
+          if (err) throw err;
+          console.table(res);
           initialPrompt()
         });
 
@@ -228,8 +282,8 @@ function setEmployeeArrays() {
     (err, res) => {
       if (err) throw err;
       for (let index = 0; index < res.length; index++) {
-        if(res[index].manager_id === null){
-        managerArray.push(res[index].first_name + " " + res[index].last_name)
+        if (res[index].manager_id === null) {
+          managerArray.push(res[index].first_name + " " + res[index].last_name)
         }
       };
     });
@@ -281,34 +335,84 @@ function addEmployee(managerArray, roleArray) {
     });
 }
 
-function updateEmployeeRole(){
+function updateEmployeeRole() {
   let employeeArray = []
-  let roleArray =[]
+  let roleArray = []
   connection.query(
-   `SELECT * FROM employees`,
+    `SELECT * FROM employees`,
     (err, empResults) => {
       connection.query(
         `SELECT * FROM roles`,
-         (err, rolesResults) => {
-     
-          console.log('emps', empResults)
-          console.log('roles', rolesResults)
+        (err, rolesResults) => {
+          for (let index = 0; index < empResults.length; index++) {
+            employeeArray.push(empResults[index].first_name + " " + empResults[index].last_name)
+          }
 
-        // if (err) throw err;
-        // console.log(res)
-        for (let index = 0; index < empResults.length; index++) {
-          employeeArray.push(empResults[index].first_name + " " +empResults[index].last_name)  
-         
-        } 
+          for (let index = 0; index < rolesResults.length; index++) {
+            roleArray.push(rolesResults[index].title)
+          }
+          inquirer.prompt([
+            {
+              type: 'list',
+              name: 'name',
+              message: 'What is the employee\'s name?',
+              choices: employeeArray,
+            },
+            {
+              type: 'list',
+              name: 'role',
+              message: 'What is the employee\'s new role?',
+              choices: roleArray,
+            },
+          ])
+            .then(function (data) {
+              let roleId;
+              let employeeId;
 
-        for (let index = 0; index < rolesResults.length; index++) {
-          roleArray.push(rolesResults[index].title)  
-         
-        } 
+              for (i = 0; i < rolesResults.length; i++) {
+                if (data.role == rolesResults[i].title) {
+                  roleId = rolesResults[i].id;
+                }
+              }
 
-        console.log('emp array', employeeArray)
-        console.log('roles array', roleArray)
-      
+              for (i = 0; i < empResults.length; i++) {
+                if (data.name.split(' ')[1] == empResults[i].last_name) {
+                  employeeId = empResults[i].id;
+                }
+              }
+              connection.query("UPDATE employees SET ? WHERE ? ",
+                [{
+                  role_id: roleId
+                },
+                {
+                  id: employeeId
+                }],
+                function (err) {
+                  if (err) throw err
+                  initialPrompt()
+                })
+            });
+        })
+    });
+}
+
+function updateEmployeeManager() {
+  let employeeArray = []
+  let managerArray = []
+  connection.query(
+    `SELECT * FROM employees`,
+    (err, empResults) => {
+      for (let index = 0; index < empResults.length; index++) {
+        employeeArray.push(empResults[index].first_name + " " + empResults[index].last_name)
+      }
+      for (let index = 0; index < empResults.length; index++) {
+        if (empResults[index].manager_id === null) {
+          managerArray.push(empResults[index].first_name + " " + empResults[index].last_name)
+        }
+      }
+      console.log(employeeArray)
+      console.log(managerArray)
+
       inquirer.prompt([
         {
           type: 'list',
@@ -318,45 +422,40 @@ function updateEmployeeRole(){
         },
         {
           type: 'list',
-          name: 'role',
-          message: 'What is the employee\'s new role?',
-          choices: roleArray,
+          name: 'manager',
+          message: 'Who is the employee\'s new manager?',
+          choices: managerArray,
         },
-       ]).then(function(data) {
-        let roleId;
-        let employeeId;
-        console.log('ANSWERS!!', data)
+      ])
+        .then(function (data) {
+          let roleId;
+          let employeeId;
 
-        for (i=0; i < rolesResults.length; i++){
-            if (data.role == rolesResults[i].title){
-                roleId = rolesResults[i].id;
+          for (i = 0; i < empResults.length; i++) {
+            if (data.manager.split(' ')[1] == empResults[i].last_name) {
+              managerId = empResults[i].id;
             }
-        }
-        console.log('Role id to update!!', roleId)
+          }
 
-        for (i=0; i < empResults.length; i++){
-            if (data.name.split(' ')[1] == empResults[i].last_name){
-                employeeId = empResults[i].id;
+          for (i = 0; i < empResults.length; i++) {
+            if (data.name.split(' ')[1] == empResults[i].last_name) {
+              employeeId = empResults[i].id;
             }
-        }
-        console.log('Emp id to update', employeeId)
-        connection.query("UPDATE employees SET ? WHERE ? ", 
-          [{
-            role_id: roleId
-            
-          },
-          {
-            id: employeeId
-          }], 
-          function(err){
+          }
+
+          connection.query("UPDATE employees SET ? WHERE ? ",
+            [{
+                manager_id: managerId
+              },
+            {
+              id: employeeId
+            },
+          ],
+            function (err) {
               if (err) throw err
-              // console.table(val)
-              // startPrompt()
               initialPrompt()
-          })
-  
-        });
-         })
+            })
+        })
     });
 }
 
