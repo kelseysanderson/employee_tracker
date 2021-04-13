@@ -1,3 +1,4 @@
+DROP DATABASE employee_tracking;
 CREATE DATABASE employee_tracking;
 
 USE employee_tracking;
@@ -31,8 +32,6 @@ CREATE TABLE employees (
 INSERT INTO departments (name)
 VALUES ("Engineering");
 INSERT INTO departments (name)
-VALUES ("Engineering");
-INSERT INTO departments (name)
 VALUES ("Sales");
 
 INSERT INTO roles (title, salary, department_id)
@@ -40,7 +39,7 @@ VALUES ("Engineer Lead", 100000.00, 1);
 INSERT INTO roles (title, salary, department_id)
 VALUES ("Engineer", 80000.00, 1);
 INSERT INTO roles (title, salary, department_id)
-VALUES ("Marketing Lead", 100000.00, 2);
+VALUES ("Sales Lead", 100000.00, 2);
 
 INSERT INTO employees (first_name, last_name, role_id, manager_id)
 VALUES ( "Jim", "Jones", 1, null);

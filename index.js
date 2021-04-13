@@ -33,7 +33,7 @@ function initialPrompt() {
           break;
 
         case 'Add Employee':
-          addEmployee();
+          setEmployeeArrays();
           break;
       }
     });
@@ -42,11 +42,11 @@ function initialPrompt() {
 function viewAllEmployees() {
   connection.query(
     `SELECT *
-        FROM employee_tracking.employees
-        JOIN employee_tracking.roles 
-        ON employee_tracking.employees.role_id = employee_tracking.roles.id
-        JOIN employee_tracking.departments
-        ON employee_tracking.roles.department_id = employee_tracking.departments.id`,
+      FROM employee_tracking.employees
+      JOIN employee_tracking.roles 
+      ON employee_tracking.employees.role_id = employee_tracking.roles.id
+      JOIN employee_tracking.departments
+      ON employee_tracking.roles.department_id = employee_tracking.departments.id`,
     (err, res) => {
       if (err) throw err;
       console.table(res);
@@ -125,8 +125,7 @@ function viewEmployeesByRole(rolesArray) {
 
       console.log(role)
       connection.query(
-        `
-          SELECT *
+        ` SELECT *
           FROM employee_tracking.employees
           JOIN employee_tracking.roles 
           ON employee_tracking.employees.role_id = employee_tracking.roles.id
@@ -152,7 +151,7 @@ function addDepartment() {
 
     .then(function (data) {
       connection.query(
-        'INSERT INTO departments (SET) ?',
+        'INSERT INTO departments SET ?',
         {
           name: data.newdept
         });
@@ -167,15 +166,13 @@ function addDepartment() {
 
 function addRole() {
   let deptArray = []
-
-  connection.query(`
-    SELECT name, id
-    FROM departments`,
+  let deptNameIdArray = []
+  connection.query("SELECT * FROM departments",
     (err, res) => {
       if (err) throw err;
       for (let index = 0; index < res.length; index++) {
-        if (res[index] === res[++index]) continue;
-        deptArray.push(res[index])
+        deptArray.push(res[index].name)
+        console.log(deptArray)
       }
       inquirer.prompt([
         {
@@ -192,73 +189,88 @@ function addRole() {
           type: 'list',
           name: 'department',
           message: 'What department is this role apart of?',
-          choices: deptArray,
+          choices: deptArray
         },])
         .then(function (data) {
-          console.log(data)
-        //   connection.query(
-        //     'INSERT INTO roles SET ?',
-        //     {
-        //       title: data.title,
-        //       salary: data.salary,
-        //       department_id: res.id
-        //     },
-
-        //     (err, res) => {
-        //       if (err) throw err;
-        //       console.table('added')
-        //     });
-        // });
+          let dept_id;
+          for (i = 0; i < res.length; i++) {
+            if (res[i].name == data.department) {
+              dept_id = res[i].id;
+            }
+          }
+          connection.query(
+            "INSERT INTO roles SET ?",
+            {
+              title: data.title,
+              salary: data.salary,
+              department_id: dept_id
+            },
+            (err, res) => {
+              if (err) throw err;
+            });
+        });
     });
-  });
 }
-// function addEmployee() {
-//   let employeeArray = []
-//   connection.query(`
-//     SELECT * FROM employees`,
-//     (err, res) => {
-//       console.log(res.length)
-//       if (err) throw err;
-//       for (let index = 0; index < res.length; index++) {
-//         if (res[index] === res[++index]) continue;
-//         console.log(res[index])
-//         // employeeArray.push(res[index].first_name + " " + res[index].last_name)
-//       }
-//           inquirer.prompt([
-//             {
-//             type: 'input',
-//             name: 'first_name',
-//             message: 'What is the employee\'s first name?',
-//             },
-//             {
-//             type: 'input',
-//             name: 'last_name',
-//             message: 'What is the employee\'s last name?',
-//             },
-//             {
-//             type: 'input',
-//             name: 'role',
-//             message: 'What is the employee\'s role?',
-//             },
-//             {
-//             type: 'list',
-//             name: 'department',
-//             message: 'Who is the employee\'s manager?',
-//             choices: employeeArray,
-//             },])
-//             .then(function(data) {
 
-//               connection.query(
-//                 `INSERT INTO names (first_name, last_name, role_id, manager_id) VALUES ('${data.first_name}', ${data.last_name}, ANY (SELECT role_id FROM roles WHERE title = '${data.department}')ANY (SELECT manager_id FROM departments WHERE name = '${data.department}'))`,
+function setEmployeeArrays() {
+  let managerArray = []
+  let roleArray = []
+  connection.query(`
+      SELECT * FROM employees`,
+    (err, res) => {
+      if (err) throw err;
+      for (let index = 0; index < res.length; index++) {
+        if(res[index].manager_id === null){
+        managerArray.push(res[index].first_name + " " + res[index].last_name)
+        }
+      };
+    });
+  connection.query(`
+        SELECT * FROM roles`,
+    (err, res) => {
+      if (err) throw err;
+      for (let index = 0; index < res.length; index++) {
+        roleArray.push(res[index].title)
+      };
+      addEmployee(managerArray, roleArray)
+    });
+};
 
-//                 (err, res) => {
-//                   if (err) throw err;
-//                   console.table('added')
-//                   });
-//           });
-//     });
-
-// }
+function addEmployee(managerArray, roleArray) {
+  inquirer.prompt([
+    {
+      type: 'input',
+      name: 'first_name',
+      message: 'What is the employee\'s first name?',
+    },
+    {
+      type: 'input',
+      name: 'last_name',
+      message: 'What is the employee\'s last name?',
+    },
+    {
+      type: 'list',
+      name: 'role',
+      message: 'What is the employee\'s role?',
+      choices: roleArray,
+    },
+    {
+      type: 'list',
+      name: 'manager',
+      message: 'Who is the employee\'s manager?',
+      choices: managerArray,
+    },])
+    .then(function (data) {
+      connection.query(
+        `INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES(?, ?, 
+          (SELECT id FROM roles WHERE title = ? ), 
+          (SELECT id FROM (SELECT id FROM employees WHERE CONCAT(first_name," ",last_name) = ? ) AS tmptable))`, [data.first_name, data.last_name, data.role, data.manager]
+      ),
+        (err, res) => {
+          if (err) throw err;
+        };
+    });
+}
 
 initialPrompt();
 
