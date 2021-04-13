@@ -7,7 +7,7 @@ function initialPrompt() {
       name: 'initial',
       type: 'list',
       message: 'What would you like to do?',
-      choices: ['View all Employees', 'View Employees by Department', 'View Employees by Role', 'View Employees by Manager', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role', 'Update Employee Manager']
+      choices: ['View all Employees', 'View Employees by Department', 'View Employees by Role', 'View Employees by Manager', 'Add Department', 'Add Role', 'Add Employee', 'Update Employee Role', 'Update Employee Manager', 'Delete Employee']
     },
   ])
     .then(function (data) {
@@ -46,6 +46,10 @@ function initialPrompt() {
 
         case 'Update Employee Manager':
           updateEmployeeManager();
+          break;
+
+        case 'Delete Employee':
+          deleteEmployee();
           break;
       }
     });
@@ -227,7 +231,6 @@ function addDepartment() {
 
 function addRole() {
   let deptArray = []
-  let deptNameIdArray = []
   connection.query("SELECT * FROM departments",
     (err, res) => {
       if (err) throw err;
@@ -428,7 +431,7 @@ function updateEmployeeManager() {
         },
       ])
         .then(function (data) {
-          let roleId;
+          let managerId;
           let employeeId;
 
           for (i = 0; i < empResults.length; i++) {
@@ -445,12 +448,12 @@ function updateEmployeeManager() {
 
           connection.query("UPDATE employees SET ? WHERE ? ",
             [{
-                manager_id: managerId
-              },
+              manager_id: managerId
+            },
             {
               id: employeeId
             },
-          ],
+            ],
             function (err) {
               if (err) throw err
               initialPrompt()
@@ -459,6 +462,40 @@ function updateEmployeeManager() {
     });
 }
 
+function deleteEmployee() {
+  employeeArray = []
+  connection.query(`
+    SELECT *
+    FROM employees`,
+    (err, empResults) => {
+      if (err) throw err;
+      for (let index = 0; index < empResults.length; index++) {
+        employeeArray.push(empResults[index].first_name + " " + empResults[index].last_name)
+      }
+      inquirer.prompt([
+        {
+          name: 'remove_emp',
+          type: 'list',
+          message: 'Which employee would you like to delete?',
+          choices: employeeArray
+        }]).then(function (data) {
+          for (i = 0; i < empResults.length; i++) {
+            if (data.remove_emp.split(' ')[1] == empResults[i].last_name) {
+              employeeLastName = empResults[i].last_name;
+            }
+          }
+          console.log(employeeLastName)
+          connection.query(
+            "DELETE FROM employees WHERE ? ",
+            {
+              last_name: employeeLastName
+            }
+          )
+        });
+    });
+    console.table(empResults)
+    initialPrompt();
+}
 initialPrompt();
 
 
