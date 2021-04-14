@@ -57,17 +57,24 @@ function initialPrompt() {
 
 function viewAllEmployees() {
   connection.query(
-    `SELECT *
-      FROM employee_tracking.employees
-      JOIN employee_tracking.roles 
-      ON employee_tracking.employees.role_id = employee_tracking.roles.id
-      JOIN employee_tracking.departments
-      ON employee_tracking.roles.department_id = employee_tracking.departments.id`,
+    `SELECT 
+        employees.id as employees_id, 
+        CONCAT(employees.first_name," ",employees.last_name) as employee_name,
+        title, 
+        salary, 
+        name as department,
+        CONCAT(managers.first_name," ",managers.last_name) as manager
+    FROM employees
+    JOIN roles 
+    ON employees.role_id = roles.id
+    JOIN departments
+    ON roles.department_id = departments.id
+    LEFT JOIN employees as managers
+    ON employees.manager_id = managers.id`,
     (err, res) => {
       if (err) throw err;
       console.table(res);
       initialPrompt()
-      // connection.end();
     });
 };
 
@@ -278,7 +285,7 @@ function addRole() {
 }
 
 function setEmployeeArrays() {
-  let managerArray = []
+  let managerArray = ["none"]
   let roleArray = []
   connection.query(`
       SELECT * FROM employees`,
@@ -326,6 +333,9 @@ function addEmployee(managerArray, roleArray) {
       choices: managerArray,
     },])
     .then(function (data) {
+      if (data.manager == "none") {
+        data.manager = null;
+      }
       connection.query(
         `INSERT INTO employees(first_name, last_name, role_id, manager_id) VALUES(?, ?, 
           (SELECT id FROM roles WHERE title = ? ), 
@@ -333,7 +343,7 @@ function addEmployee(managerArray, roleArray) {
       ),
         (err, res) => {
           if (err) throw err;
-          initialPrompt()
+          initialPrompt();
         };
     });
 }
@@ -410,6 +420,7 @@ function updateEmployeeManager() {
       }
       for (let index = 0; index < empResults.length; index++) {
         if (empResults[index].manager_id === null) {
+
           managerArray.push(empResults[index].first_name + " " + empResults[index].last_name)
         }
       }
@@ -429,36 +440,35 @@ function updateEmployeeManager() {
           message: 'Who is the employee\'s new manager?',
           choices: managerArray,
         },
-      ])
-        .then(function (data) {
-          let managerId;
-          let employeeId;
+      ]).then(function (data) {
+        let managerId;
+        let employeeId;
 
-          for (i = 0; i < empResults.length; i++) {
-            if (data.manager.split(' ')[1] == empResults[i].last_name) {
-              managerId = empResults[i].id;
-            }
+        for (i = 0; i < empResults.length; i++) {
+          if (data.manager.split(' ')[1] == empResults[i].last_name) {
+            managerId = empResults[i].id;
           }
+        }
 
-          for (i = 0; i < empResults.length; i++) {
-            if (data.name.split(' ')[1] == empResults[i].last_name) {
-              employeeId = empResults[i].id;
-            }
+        for (i = 0; i < empResults.length; i++) {
+          if (data.name.split(' ')[1] == empResults[i].last_name) {
+            employeeId = empResults[i].id;
           }
+        }
 
-          connection.query("UPDATE employees SET ? WHERE ? ",
-            [{
-              manager_id: managerId
-            },
-            {
-              id: employeeId
-            },
-            ],
-            function (err) {
-              if (err) throw err
-              initialPrompt()
-            })
-        })
+        connection.query("UPDATE employees SET ? WHERE ? ",
+          [{
+            manager_id: managerId
+          },
+          {
+            id: employeeId
+          },
+          ],
+          function (err) {
+            if (err) throw err
+            initialPrompt()
+          })
+      })
     });
 }
 
@@ -493,8 +503,8 @@ function deleteEmployee() {
           )
         });
     });
-    console.table(empResults)
-    initialPrompt();
+  console.table(empResults)
+  initialPrompt();
 }
 initialPrompt();
 
